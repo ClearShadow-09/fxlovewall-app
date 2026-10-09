@@ -1,0 +1,44 @@
+name: fxwall
+description: 复兴表白墙 客户端（Android / iOS / Windows）
+publish_to: 'none'
+
+# versionName+versionCode。沿用旧 Kotlin 版的编码规则（major*10000+minor*100+patch），
+# 旧版停在 0.8.1-beta = 801；1.0.0 = 10000，1.1.0 = 10100，1.1.1 = 10101，
+# 1.2.0-beta = 10200。versionCode 单调递增，所以能一路干净地覆盖升级。
+#
+# ⚠️ versionName 里的 `-beta-debug` 后缀**不参与**版本比较（见 FxVersion.parse）：
+# 后缀表达的是构建渠道，不是新旧顺序，比较只看 1.2.0 这段数字。
+version: 1.2.5-release+10205
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 社区三方 WebView（flutter_inappwebview 的活跃维护分支），提供 JSBridge：
+  # addJavaScriptHandler / callHandler。要求 Android API 24+，与本工程一致。
+  zikzak_inappwebview: ^6.0.2
+
+  shared_preferences: ^2.3.2   # 设置持久化（对应旧版的 SharedPreferences）
+  image_picker: ^1.1.2         # 背景图选择（带 maxWidth/quality，选图时直接降采样）
+  url_launcher: ^6.3.1         # 站外链接交给系统浏览器
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  # 这三个文件由 build_apk.ps1 从 ..\app\res\raw\ 复制过来，
+  # 保持「全平台单一事实来源」——与旧 Kotlin 版、node 测试读的是同一份。
+  assets:
+    - assets/theme.css
+    - assets/pager.js
+    - assets/layout_fix.js
+    # 启动页 logo 直接用软件自己的图标，免得桌面图标与启动页里长得不一样
+    # （由 build_apk.ps1 从 android/app/src/main/res 复制）
+    - assets/ic_launcher.png
