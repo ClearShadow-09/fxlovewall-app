@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 的路径白名单（需求 7）。
+
+  只暴露 cacheDir 下的 fxupdate/ 一个子目录：下载的 APK 落在那里。
+  刻意**不**用 <cache-path name="x" path="." /> —— 那会把整个缓存目录
+  （包括 WebView 缓存）都变成可被外部 App 读取的 content:// URI。
+-->
+<paths>
+    <cache-path name="fxupdate" path="fxupdate/" />
+</paths>

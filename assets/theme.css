@@ -1,0 +1,845 @@
+/* ==========================================================================
+   复兴表白墙 Android 客户端 — Material 3 主题覆盖层（软件主题）
+   由 App 在每次页面加载完成后注入。
+   颜色取自设计稿：primary #6750A4 / container #E8DEF8 / surface #FEF7FF
+
+   ⚠️ 「网页主题」模式下**这个文件完全不会被注入**（见 FxBridge.buildCss）。
+   所以这里可以放心地做彻底改造，不必为「原样显示」留后路。
+
+   v1.1.0 主要变化：
+     · 正文改为纯黑（原来是主题色派生出来的彩黑，被反馈「不是纯黑」）
+     · 动作区由「胶囊」改为「图标 + 文字」，点赞/收藏图标空心↔实心
+     · 「展开全文」由按钮改为主题色超链接
+     · 圆角收敛到 --fx-radius（默认 8px，比原来的 16~20px 方）
+     · 隐藏站点自己的「正在响应」遮罩
+     · 发帖页格式工具栏缩小并强制一行
+   ========================================================================== */
+
+:root {
+  --fx-primary:        #6750a4;
+  --fx-on-primary:     #ffffff;
+  --fx-container:      #e8def8;
+  --fx-on-container:   #1d192b;
+  --fx-surface:        #ffffff;
+  --fx-surface-c:      #f4f5f7;
+  --fx-surface-ch:     #eceef1;
+  --fx-surface-chh:    #e2e5ea;
+  --fx-on-surface:     #1d1b20;
+  --fx-on-surface-var: #49454f;
+  --fx-outline:        #79747e;
+  --fx-outline-var:    #cac4d0;
+  --fx-divider:        rgba(29, 25, 43, .12);
+  --fx-error:          #b3261e;
+  /* 正文：纯黑。刻意与主题色解耦 —— 换主题色时正文不能跟着变。 */
+  --fx-text-body:      #000000;
+  /* 卡片/评论底。
+     ⚠️ 这两个值必须用 rgb + var(--fx-primary-rgb) 的通道，而不是写死一个 rgba ——
+     原来写死 rgba(232,222,248,.70)（一个固定的淡紫），于是无论主题色选什么，
+     整页卡片都是紫色，用户反馈的就是这个「一直是紫色」。
+     现在由 App 注入的 --fx-primary-rgb 决定色相，只有浓度是固定的。
+
+     浓度取 .12/.08：用户反馈 .18 偏重、想让底更白一点，所以回调一档。
+     叠在白底上的效果：.18 → rgb(218,226,254)，.12 → rgb(230,236,254)。
+     仍然比第一版的 .10 稍深，保留「看得出是主题色」的底色感。 */
+  --fx-card-bg:        rgba(var(--fx-primary-rgb, 103, 80, 164), .12);
+  --fx-input-bg:       rgba(var(--fx-primary-rgb, 103, 80, 164), .08);
+  /* 圆角：由 App 依据设置覆盖（默认 8px）。 */
+  --fx-radius:         8px;
+  --fx-radius-sm:      5px;
+  color-scheme: light;
+}
+
+html.fx-dark {
+  --fx-primary:        #d0bcff;
+  --fx-on-primary:     #381e72;
+  --fx-container:      #4a4458;
+  --fx-on-container:   #e8def8;
+  --fx-surface:        #141218;
+  --fx-surface-c:      #1c1f24;
+  --fx-surface-ch:     #24272d;
+  --fx-surface-chh:    #2e323a;
+  --fx-on-surface:     #e6e0e9;
+  --fx-on-surface-var: #cac4d0;
+  --fx-outline:        #938f99;
+  --fx-outline-var:    #49454f;
+  --fx-divider:        rgba(230, 224, 233, .16);
+  --fx-error:          #f2b8b5;
+  /* 深色下「纯黑」会看不见，所以取中性浅灰 —— 关键是「不是主题色」。 */
+  --fx-text-body:      #e6e0e9;
+  /* 深色下卡片底色同样是主题色叠加，浓度与亮色对齐（见 :root 的说明）。
+     深色底本来就很暗，叠 .18 会比亮色显眼得多，所以这里取略低一档。 */
+  --fx-card-bg:        rgba(var(--fx-primary-rgb, 208, 188, 255), .16);
+  --fx-input-bg:       rgba(var(--fx-primary-rgb, 208, 188, 255), .11);
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   动作区图标
+   用 mask + currentColor，所以图标颜色自动跟随文字色，空心/实心只换一张 mask。
+   编码说明：< > 写成 %3C %3E，属性用单引号，整串外面套双引号。
+   ========================================================================== */
+:root {
+  --fx-ico-like: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 11v9M7 11l3.9-7.1a1.9 1.9 0 0 1 3.5 1.3L13.5 11h5.2a1.9 1.9 0 0 1 1.9 2.2l-1.1 6.5a1.9 1.9 0 0 1-1.9 1.6H7M7 11H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3'/%3E%3C/svg%3E");
+  --fx-ico-like-on: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M2 20a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1zM21.9 10.4a1.9 1.9 0 0 0-1.9-1.8h-5.2l1-4.5.03-.31a1.4 1.4 0 0 0-.41-.99L14.5 1.9l-6.6 6.6a1.9 1.9 0 0 0-.6 1.3v9.3A1.9 1.9 0 0 0 9.2 21h7.7a1.9 1.9 0 0 0 1.79-1.2l2.2-5.1c.05-.13.08-.27.08-.4z'/%3E%3C/svg%3E");
+  --fx-ico-star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.2l2.7 5.5 6 .9-4.35 4.24 1.03 5.98L12 17.0l-5.38 2.82 1.03-5.98L3.3 9.6l6-.9z'/%3E%3C/svg%3E");
+  --fx-ico-star-on: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M12 2.6l3 6.1 6.7 1-4.85 4.73 1.15 6.67L12 17.9l-6 3.2 1.15-6.67L2.3 9.7l6.7-1z'/%3E%3C/svg%3E");
+  --fx-ico-share: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='M8.6 10.6l6.8-4M8.6 13.4l6.8 4'/%3E%3C/svg%3E");
+  --fx-ico-comment: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 11.6a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-2.8-.45L4 21l1.45-4.6A8.4 8.4 0 0 1 3.6 11.6 8.4 8.4 0 0 1 12 3.2h.6a8.4 8.4 0 0 1 8.4 8.4z'/%3E%3C/svg%3E");
+}
+
+/* ---------- base ---------- */
+html {
+  background: var(--fx-surface) !important;
+  color: var(--fx-on-surface) !important;
+}
+body {
+  background: transparent !important;
+  color: var(--fx-on-surface) !important;
+}
+/* 自定义背景层：--fx-bg 为图片 url()，--fx-bg-opacity 控制不透明度（由 App 注入）。 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--fx-bg, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--fx-bg-opacity, 0);
+  pointer-events: none;
+}
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+               "Microsoft YaHei", "Noto Sans SC", sans-serif !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+}
+a { color: var(--fx-primary) !important; text-decoration: none !important; }
+a:hover { text-decoration: none !important; }
+::selection { background: var(--fx-container); color: var(--fx-on-container); }
+::-webkit-scrollbar { width: 0; height: 0; }
+
+h1, h2, h3, h4, strong, b { color: var(--fx-on-surface); }
+h1 { font-size: 22px !important; letter-spacing: -.01em; }
+p, li { color: var(--fx-on-surface); }
+.muted { color: var(--fx-on-surface-var) !important; }
+
+/* ---------- 站点自带外层：由原生顶栏 / 底部导航接管 ----------
+   ⚠️ 注意这里 **没有** 隐藏 .entry-notice-entry（入站须知）。
+   入站须知是要显示的，而且必须是整行全宽，不能和别的元素挤成两列。 */
+header.topbar,
+.topbar,
+.hero,
+.search-bar,
+.sort-tabs,
+.lucky-post-entry { display: none !important; }
+
+/* 入站须知：整行全宽。站点在某些断点下会把它塞进多列网格里，
+   这里显式声明跨满所有列并撑满宽度，避免出现「只占一列、另一列留空」。 */
+.entry-notice-entry {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  grid-column: 1 / -1 !important;
+  grid-row: auto !important;
+  float: none !important;
+  clear: both !important;
+  margin: 10px 0 12px !important;
+}
+.entry-notice-entry > * { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+.entry-notice-card, .entry-notice { width: 100% !important; box-sizing: border-box !important; }
+
+/* ---------- 容器 ---------- */
+.container {
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 10px 14px 26px !important;
+}
+/* 平板 / 宽屏：信息流限宽居中，否则卡片会被拉成一条很宽的长条 */
+@media (min-width: 900px) {
+  .container {
+    max-width: 880px !important;
+    margin: 0 auto !important;
+    padding-top: 16px !important;
+  }
+  .fx-pager { margin-bottom: 40px !important; }
+}
+
+/* ---------- 卡片：主题色淡底，透出背景 ----------
+   ⚠️ 用 background-color 长写，不要用 background 简写。
+   简写里含 var() 时，Chromium 要等到计算值阶段才能展开；一旦展开失败
+   整条声明会被丢弃（不是回落，是不存在）。长写没有这个歧义，也更不容易
+   和后面那几条只设 margin/padding 的 .card 规则互相干扰。 */
+.card, .form-card, .favorite-card, .comment, .comment-form {
+  background-color: var(--fx-card-bg) !important;
+  border: 0 !important;
+  border-radius: var(--fx-radius) !important;
+  box-shadow: none !important;
+  color: var(--fx-text-body) !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.card, .form-card { margin: 0 0 12px !important; padding: 16px !important; }
+.post.card, article.card.post { padding: 16px !important; margin: 0 0 12px !important; }
+.favorite-card { margin: 0 0 12px !important; }
+.comment, .comment-form { border-radius: var(--fx-radius-sm) !important; padding: 14px !important; }
+.comment-form { margin-bottom: 14px !important; }
+.comment { margin: 8px 0 !important; }
+
+/* ---------- 帖子头部 ---------- */
+.post-meta, .comment-meta {
+  color: var(--fx-on-surface-var) !important;
+  font-size: 12px !important;
+  align-items: baseline !important;
+}
+.post .post-meta { margin-bottom: 6px !important; }
+.post .post-meta strong {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--fx-on-surface) !important;
+}
+.post .post-meta span { font-size: 11px !important; color: var(--fx-on-surface-var) !important; }
+
+/* 置顶徽标：**主题色淡底 + 黑字**（用户指定）。
+   原来用 --fx-surface-chh（灰紫底）+ 主题色字，看起来就是「一直是紫色、和主题色无关」。
+   --fx-container 是由主题色按比例混出来的淡色，所以换主题色时会跟着变。 */
+.pinned-badge {
+  background: var(--fx-container) !important;
+  color: #000000 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  padding: 2px 9px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+html.fx-dark .pinned-badge { color: var(--fx-on-container) !important; }
+
+/* ---------- 正文：纯黑 ----------
+   原来是 var(--fx-on-container)，那是从主题色派生出来的（darken(accent,.4)），
+   换个主题色正文就变彩，被反馈「正文不是纯黑、是主题色」。 */
+.post-content, .comment-content, .post .post-content {
+  color: var(--fx-text-body) !important;
+  line-height: 1.62 !important;
+  font-size: 14.5px !important;
+}
+.post .post-content { margin-top: 8px !important; }
+.post-content-collapsible { -webkit-line-clamp: 6; }
+
+/* ---------- 标签 → M3 chip ----------
+   需求：不要「一直是紫色」，要跟主题色走。
+   原来用 --fx-surface-ch（M3 调色板里带紫调的灰），所以无论主题色选什么，
+   标签看着都是淡紫。现在改用 --fx-container —— 它由主题色按比例混出来，
+   换主题色时会跟着变；文字用纯黑保证在淡色底上足够清晰。 */
+.tags { gap: 6px !important; margin: 10px 0 0 !important; }
+.tag, .post .tag {
+  background: var(--fx-container) !important;
+  color: #000000 !important;
+  border-radius: 999px !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  display: inline-block !important;
+}
+/* hover 时略深一点：直接在主题色 container 上压一点亮度，
+   而不是回到 M3 那套带紫调的灰。 */
+.tag:hover { filter: brightness(.95); }
+
+/* ---------- 操作区 ---------- */
+.post-actions, .post-actions-v4, .actions {
+  border-top: 1px solid var(--fx-divider) !important;
+  margin-top: 12px !important;
+  padding-top: 10px !important;
+  color: var(--fx-on-surface-var) !important;
+  align-items: center !important;
+}
+.post .post-actions, .post .post-actions-v4 { margin-top: 10px !important; gap: 10px !important; }
+.actions form, .comment-actions form, .share-post-form { margin: 0 !important; }
+
+/* ==========================================================================
+   动作区：图标 + 文字
+   需求原文：
+     【图标+点赞数】【图标+(已)收藏】【图标+分享】【图标+评论】
+     点赞图标要切换空心/实心
+
+   实现要点：
+   1) JS（layout_fix.js）给每个动作控件打上 .fx-ico 标记类，并按类型写入
+      --fx-ico / --fx-ico-on 两张 mask，以及 data-fx-count（点赞数）。
+   2) 外观一律挂在 App 自己的 .fx-ico 上，不看站点给了什么 class ——
+      站点的类名（.like-button 到底长什么样、登录后才有）无法离线确认。
+   3) 点赞按钮里同时混着「点赞」两个字和数字，CSS 拆不开，所以用
+      .fx-num + attr(data-fx-count)：把原文字隐藏（font-size:0），
+      再用 ::after 把 JS 抠出来的数字画回去。
+   ========================================================================== */
+.fx-ico {
+  background: none !important;
+  border: 0 !important;
+  border-radius: var(--fx-radius-sm) !important;
+  box-shadow: none !important;
+  color: var(--fx-on-surface-var) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  height: auto !important;
+  width: auto !important;
+  padding: 4px 7px !important;
+  margin: 0 !important;
+  font: inherit !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  text-decoration: none !important;
+  text-indent: 0 !important;
+  text-shadow: none !important;
+  text-transform: none !important;
+  opacity: 1 !important;
+  vertical-align: middle !important;
+  cursor: pointer !important;
+  transition: color var(--fx-dur) var(--fx-ease),
+              background-color var(--fx-dur) var(--fx-ease);
+}
+.fx-ico::before {
+  content: "" !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+  width: 17px !important;
+  height: 17px !important;
+  background: currentColor !important;
+  /* 用长写而不是 mask 简写：简写会把 mask-image 重置一遍，后面 .fx-on 那条
+     再想只覆盖 mask-image 就得赌顺序，长写没有这个隐患。 */
+  -webkit-mask-image: var(--fx-ico, none) !important;
+  mask-image: var(--fx-ico, none) !important;
+  -webkit-mask-position: center !important;
+  mask-position: center !important;
+  -webkit-mask-size: 17px 17px !important;
+  mask-size: 17px 17px !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-repeat: no-repeat !important;
+  transition: transform 120ms var(--fx-ease);
+}
+/* 只要数字（点赞）：藏掉原文，把 JS 抠出来的数字画到后面 */
+.fx-ico.fx-num { font-size: 0 !important; }
+.fx-ico.fx-num::after {
+  content: attr(data-fx-count);
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  color: currentColor !important;
+}
+/* 已开启态：换成实心图标 + 主题色 */
+.fx-ico.fx-on,
+.fx-ico.liked,
+.fx-ico.is-liked,
+.fx-ico.favorited {
+  color: var(--fx-primary) !important;
+}
+.fx-ico.fx-on::before,
+.fx-ico.liked::before,
+.fx-ico.is-liked::before,
+.fx-ico.favorited::before {
+  -webkit-mask-image: var(--fx-ico-on, none) !important;
+  mask-image: var(--fx-ico-on, none) !important;
+}
+.fx-ico:hover { background: var(--fx-surface-ch) !important; }
+.fx-ico:active { transform: scale(.96); }
+
+/* JS 没跑到时的兜底：至少不是大号实心胶囊。
+   ⚠️ 每条都必须带 :not(.fx-ico)。否则 `.right-actions > a` 的特指度是 (0,1,1)、
+   `.left-actions .muted` 是 (0,2,0)，都会**压过** `.fx-ico` 的 (0,1,0)，
+   把图标+文字又打回一坨灰字（这类特指度坑在 0.7.3 已经踩过一次）。 */
+.like-button:not(.fx-ico), .favorite-button:not(.fx-ico),
+.share-button:not(.fx-ico), .right-actions > a:not(.fx-ico),
+.left-actions .muted:not(.fx-ico), .left-actions span:not(.fx-ico) {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--fx-on-surface-var) !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 4px 7px !important;
+  margin: 0 !important;
+  font: inherit !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  text-decoration: none !important;
+}
+.like-button.liked:not(.fx-ico),
+.like-button.is-liked:not(.fx-ico),
+.favorite-button.favorited:not(.fx-ico) {
+  color: var(--fx-primary) !important;
+}
+
+/* ---------- 「展开全文 ····· 举报」同一行 ----------
+   由 res/raw/layout_fix.js 把举报（自己的帖子则是「删除」）从动作行搬过来，
+   并包上 .fx-tail。左：展开全文（短帖被 hidden 时不占位）；右：最靠右。 */
+.fx-tail {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin: 10px 0 0 !important;
+  animation: fxFadeIn 200ms var(--fx-ease);
+}
+.fx-tail > .post-fold-toggle { margin: 0 !important; }
+/* margin-left:auto 是关键：展开全文被 hidden 之后，右侧依然靠最右 */
+.fx-tail > form,
+.fx-tail > .fx-report,
+.fx-tail > .fx-delete,
+.fx-tail > .text-danger-button {
+  margin: 0 0 0 auto !important;
+}
+.fx-tail > form {
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+/* 「展开全文」：主题色纯文字超链接（原来是浅色胶囊按钮） */
+.post-fold-toggle {
+  background: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--fx-primary) !important;
+  padding: 2px 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  width: auto !important;
+  font: inherit !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  text-decoration-thickness: 1px !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+.post-fold-toggle:hover { opacity: .8 !important; }
+
+/* 举报 / 自己的帖子的删除：中灰色纯文字。
+   刻意写到 (0,2,0) 及以上，压过 button.danger (0,1,1) 与通用 button (0,0,1)。 */
+.fx-report,
+.fx-delete,
+.right-actions .fx-report,
+.fx-tail .fx-report,
+button.fx-report,
+.text-danger-button.fx-report,
+.comment-action-button.fx-report {
+  background: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--fx-on-surface-var) !important;
+  font: inherit !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  padding: 4px 6px !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  width: auto !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+/* 评论区里的编辑/删除等小文字按钮：保持纯文字。
+   必须把下面这些排除掉，否则本条 (0,3,1) 会压过图标规则或红色规则：
+     .like-button / .share-button / .favorite-button → 它们要图标+文字
+     .text-danger-button                            → 它要保持红色语义 */
+.comment-action-link, .comment-action-button, .text-danger-button,
+.my-post-actions a,
+.my-post-actions button:not(.like-button):not(.share-button):not(.favorite-button):not(.text-danger-button) {
+  background: none !important;
+  border: 0 !important;
+  color: var(--fx-primary) !important;
+  font: inherit !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  padding: 4px 6px !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+}
+.text-danger-button, .comment-action-button { color: var(--fx-error) !important; }
+/* 动作区里的那一个（举报 / 删除自己的帖子）走中性灰。 */
+.right-actions .text-danger-button,
+.fx-tail .text-danger-button { color: var(--fx-on-surface-var) !important; }
+
+/* ---------- 通用按钮（登录 / 注册 / 提交 / 发帖等） ----------
+   特指度刻意保持最低（0,0,1），任何 class 规则都能覆盖它。 */
+button, .button {
+  background: var(--fx-primary) !important;
+  color: var(--fx-on-primary) !important;
+  border: 0 !important;
+  border-radius: var(--fx-radius) !important;
+  padding: 11px 22px !important;
+  font: inherit !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+  text-indent: 0 !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+  min-height: 44px !important;
+}
+button:active, .button:active { opacity: .85; }
+button.danger { background: var(--fx-error) !important; color: #fff !important; }
+
+/* ---------- 发帖页格式工具栏：整体缩小 + 强制一行 ----------
+   站点原样式按钮 min-width:42px / padding:6px 10px，在窄屏上会换行成两三排。
+   这里压到 30px 高、按内容宽度，并用 nowrap + 横向滚动保证永远只有一行。 */
+.post-format-toolbar {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 6px 2px !important;
+  margin: 10px 0 !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.post-format-toolbar::-webkit-scrollbar { height: 0 !important; }
+.post-format-toolbar button,
+.post-format-toolbar .button,
+.post-format-toolbar .post-color-button {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  margin: 0 !important;
+  border-radius: var(--fx-radius-sm) !important;
+  background: var(--fx-surface-ch) !important;
+  color: var(--fx-on-surface) !important;
+  border: 0 !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+}
+.post-format-toolbar button:hover { background: var(--fx-surface-chh) !important; }
+/* 四个颜色按钮做成小圆点，尽量省横向空间 */
+.post-format-toolbar .post-color-button {
+  width: 30px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  color: #fff !important;
+}
+.post-format-toolbar .post-color-button.post-color-button-orange,
+.post-format-toolbar .post-color-button.orange { background: #b5794c !important; }
+.post-format-toolbar .post-color-button.red { background: #b76565 !important; }
+.post-format-toolbar .post-color-button.blue { background: #5f78a8 !important; }
+.post-format-toolbar .post-color-button.green { background: #628a6a !important; }
+.post-format-toolbar .post-format-divider,
+.post-format-divider {
+  flex: 0 0 auto !important;
+  width: 1px !important;
+  height: 18px !important;
+  margin: 0 2px !important;
+  background: var(--fx-outline-var) !important;
+}
+/* 编辑区与帮助文字 */
+.post-editor {
+  border-radius: var(--fx-radius-sm) !important;
+  background: var(--fx-input-bg) !important;
+  color: var(--fx-text-body) !important;
+}
+.post-editor-help {
+  color: var(--fx-on-surface-var) !important;
+  font-size: 12px !important;
+  line-height: 1.55 !important;
+}
+
+/* ---------- 客户端分页器 ---------- */
+.fx-pager {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin: 20px 0 30px !important;
+  padding: 0 2px !important;
+}
+.fx-pager .fx-page {
+  background: var(--fx-surface-ch) !important;
+  color: var(--fx-primary) !important;
+  border: 0 !important;
+  border-radius: var(--fx-radius-sm) !important;
+  margin: 0 !important;
+  padding: 0 15px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  font: inherit !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+.fx-pager .fx-page.fx-current {
+  background: var(--fx-primary) !important;
+  color: var(--fx-on-primary) !important;
+}
+.fx-pager .fx-page[disabled] {
+  opacity: .35 !important;
+  cursor: default !important;
+}
+.fx-pager .fx-ellipsis {
+  color: var(--fx-on-surface-var) !important;
+  font-size: 13px !important;
+  padding: 0 2px !important;
+}
+.fx-pager .fx-info {
+  flex-basis: 100% !important;
+  text-align: center !important;
+  color: var(--fx-on-surface-var) !important;
+  font-size: 12.5px !important;
+  margin-top: 2px !important;
+}
+.link-button {
+  background: none !important;
+  color: var(--fx-primary) !important;
+  padding: 0 !important;
+}
+.clear-search { color: var(--fx-primary) !important; }
+
+/* ---------- 表单 ---------- */
+label { color: var(--fx-on-surface) !important; font-weight: 600 !important; font-size: 13px !important; }
+input, textarea, select {
+  background: var(--fx-input-bg) !important;
+  color: var(--fx-on-surface) !important;
+  border: 1px solid var(--fx-outline-var) !important;
+  border-radius: var(--fx-radius-sm) !important;
+  padding: 12px 14px !important;
+  font: inherit !important;
+}
+input::placeholder, textarea::placeholder { color: var(--fx-outline) !important; }
+input:focus, textarea:focus, select:focus {
+  outline: none !important;
+  border-color: var(--fx-primary) !important;
+  box-shadow: 0 0 0 1px var(--fx-primary) !important;
+}
+
+/* ---------- flash 提示 ---------- */
+.flash {
+  background: var(--fx-surface-ch) !important;
+  border: 0 !important;
+  border-radius: var(--fx-radius-sm) !important;
+  color: var(--fx-on-surface) !important;
+  padding: 12px 16px !important;
+}
+
+/* ---------- 评论 ---------- */
+.comments-section { margin-top: 20px !important; }
+.comments-section h2, .comments-section h3 { font-size: 17px !important; }
+
+/* ---------- 今日小签 / 你知道吗 ---------- */
+.daily-hero, .knowledge-hero { margin: 18px auto 14px !important; }
+.daily-hero h1 { font-size: 30px !important; color: var(--fx-on-surface) !important; }
+.daily-kicker { color: var(--fx-primary) !important; }
+.daily-hero p { color: var(--fx-on-surface-var) !important; }
+.daily-grid { grid-template-columns: 1fr !important; gap: 12px !important; margin: 16px 0 !important; }
+.daily-footer-note { color: var(--fx-on-surface-var) !important; margin: 18px 0 28px !important; }
+.daily-lucky-item-button, .daily-lucky-item-result { color: var(--fx-primary) !important; font-size: 12.5px !important; }
+.knowledge-empty { color: var(--fx-on-surface-var) !important; padding: 48px 10px !important; }
+/* 争议提示条：**完全照搬站点自己的金色配色**（用户指定）。
+   原先被我改成灰底灰字，丢掉了站点用它表达「这条有争议」的语义。
+   站点原值：边框 #e9a23b / 底色 #fff8e8 / 文字 #b7670a。
+   三个 .controversy-* 是站点同一组提示的不同用途，一起还原。 */
+.controversy-notice,
+.admin-controversy-state {
+  background: #fff8e8 !important;
+  border: 1px solid #e9a23b !important;
+  color: #b7670a !important;
+  border-radius: var(--fx-radius-sm) !important;
+  padding: 8px 11px !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  font-weight: 500 !important;
+}
+.admin-controversy-state { padding: 7px 10px !important; }
+.controversy-admin-button {
+  background: #fffaf0 !important;
+  border: 1px solid #e4a44b !important;
+  color: #a85d08 !important;
+}
+/* 深色下把金色的明度压下来，否则 #fff8e8 底色在暗背景上刺眼 */
+html.fx-dark .controversy-notice,
+html.fx-dark .admin-controversy-state {
+  background: #3a2f1c !important;
+  border-color: #b8791f !important;
+  color: #f0c680 !important;
+}
+html.fx-dark .controversy-admin-button {
+  background: #2e2517 !important;
+  border-color: #a06a1c !important;
+  color: #e0b070 !important;
+}
+
+/* ---------- 收藏页 / 我的帖子 ---------- */
+.favorites-page { max-width: none !important; margin: 0 !important; }
+.favorites-header h1 { font-size: 20px !important; }
+.favorites-header p { color: var(--fx-on-surface-var) !important; }
+
+/* ---------- 合规声明页 ---------- */
+.compliance-page { max-width: none !important; }
+.compliance-entry { color: var(--fx-on-surface-var) !important; }
+.compliance-entry a {
+  color: var(--fx-on-surface-var) !important;
+  border-bottom: 1px dashed var(--fx-outline) !important;
+}
+.compliance-intro, .compliance-section li { color: var(--fx-on-surface-var) !important; }
+
+/* ---------- 页脚 ---------- */
+footer { color: var(--fx-on-surface-var) !important; }
+
+/* ==========================================================================
+   「正在响应」遮罩 —— 直接隐藏，保留原页面可见可滚动
+   站点是 .global-loading-overlay + body.is-loading 控制的：
+     body.is-loading .global-loading-overlay { display: flex; }   (0,2,1)
+   用同特指度 + !important 覆盖它。
+
+   为什么不能只隐藏遮罩：body.is-loading 还会把 cursor 变成 wait、
+   把 disabled 的按钮压到 55% 透明度。这里一并还原，让用户在等服务端返回的
+   这段时间里，看到的仍然是一个正常的、可以继续滑动的页面。
+   ========================================================================== */
+.global-loading-overlay { display: none !important; }
+body.is-loading .global-loading-overlay { display: none !important; }
+body.is-loading { cursor: auto !important; opacity: 1 !important; filter: none !important; }
+body.is-loading * { cursor: auto !important; }
+body.is-loading button:disabled,
+body.is-loading input[type="submit"]:disabled { opacity: 1 !important; cursor: auto !important; }
+
+/* ==========================================================================
+   网页内动效
+   节奏与 Flutter 侧的 FxMotion 对齐：短时长（120-260ms）、标准缓动、
+   位移很小。目标是「快而不飘」，不做夸张的弹跳。
+   ========================================================================== */
+
+/* 注册自定义属性，让主题色切换时颜色能平滑过渡而不是硬跳。
+   不支持 @property 的浏览器会忽略这段，退化成直接切换，不影响功能。 */
+@property --fx-primary { syntax: '<color>'; inherits: true; initial-value: #6750a4; }
+@property --fx-container { syntax: '<color>'; inherits: true; initial-value: #e8def8; }
+@property --fx-on-container { syntax: '<color>'; inherits: true; initial-value: #1d192b; }
+
+:root {
+  /* Material 3 standard easing */
+  --fx-ease: cubic-bezier(.2, 0, 0, 1);
+  --fx-dur: 180ms;
+}
+
+/* 主题色 / 主题模式切换：颜色本身平滑过渡 */
+html, body, a, .card, .form-card, .comment, .tag, .post-content, .comment-content,
+.post-meta, .flash, input, textarea, .fx-info, .fx-page {
+  transition: background-color var(--fx-dur) var(--fx-ease),
+              color var(--fx-dur) var(--fx-ease),
+              border-color var(--fx-dur) var(--fx-ease);
+}
+
+/* 自定义背景图的透明度变化也做成过渡（拖动滑块时跟手，程序化变更时平滑） */
+body::before { transition: opacity 200ms var(--fx-ease); }
+
+/* ---- 卡片入场：分页切换时错峰淡入上移（--fx-i 由桥接脚本按序号写入） ---- */
+@keyframes fxCardIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+article.card.post.fx-card-in {
+  animation: fxCardIn 260ms var(--fx-ease) both;
+  animation-delay: calc(var(--fx-i, 0) * 30ms);
+}
+
+/* ---- 图标动作：状态色过渡 + 按下轻微缩放 ---- */
+.fx-ico, .fx-page, .fx-report, .fx-delete {
+  transition: background-color var(--fx-dur) var(--fx-ease),
+              color var(--fx-dur) var(--fx-ease),
+              transform 120ms var(--fx-ease);
+}
+.fx-ico:active, .fx-page:active, .post-fold-toggle:active { transform: scale(.96); }
+
+/* ---- 点赞 / 收藏：状态切换时图标回弹一下 ---- */
+@keyframes fxPop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+.fx-ico.fx-on::before,
+.fx-ico.liked::before,
+.fx-ico.is-liked::before,
+.fx-ico.favorited::before { animation: fxPop 260ms var(--fx-ease); }
+
+/* ---- 展开全文：放开行数时给一点进入感，避免生硬跳变 ---- */
+@keyframes fxExpand {
+  from { opacity: .55; }
+  to   { opacity: 1; }
+}
+.post-content-collapsible.is-expanded { animation: fxExpand 220ms var(--fx-ease); }
+
+/* ---- 「展开全文 ····· 举报」那一行整体淡入（由 layout_fix.js 组装） ---- */
+@keyframes fxFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- 分页器 ---- */
+.fx-pager { animation: fxCardIn 220ms var(--fx-ease) both; }
+.fx-pager .fx-page.fx-current { animation: fxPop 220ms var(--fx-ease); }
+
+/* ---- flash 提示 ---- */
+.flash { animation: fxCardIn 220ms var(--fx-ease) both; }
+
+/* ==========================================================================
+   动画档位（由 App 在 <html> 上切类名）
+     fx-motion-key  = 只保留关键动效：去掉错峰入场、回弹、淡入这些装饰
+     fx-motion-none = 全部动效关闭
+   类名不写 = 「全部」，也就是上面那些原样生效。
+   ========================================================================== */
+html.fx-motion-key .fx-card-in,
+html.fx-motion-key .fx-tail,
+html.fx-motion-key .fx-pager,
+html.fx-motion-key .flash,
+html.fx-motion-key .post-content-collapsible.is-expanded,
+html.fx-motion-key .fx-ico::before {
+  animation: none !important;
+}
+html.fx-motion-none *,
+html.fx-motion-none *::before,
+html.fx-motion-none *::after {
+  animation: none !important;
+  transition: none !important;
+  animation-delay: 0ms !important;
+}
+
+/* ---- 尊重系统的「减少动态效果」 ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

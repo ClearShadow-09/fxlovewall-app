@@ -1,0 +1,142 @@
+# =============================================================================
+#  iOS 云构建：在 GitHub 的 macOS 机器上编译
+#
+#  为什么需要这个：iOS 应用只能在 macOS 上编译（苹果的硬性限制）。
+#  手上是 Windows，所以借 GitHub Actions 提供的免费 macOS runner 来编。
+#
+#  产物：**未签名**的 IPA，作为 Actions Artifact 提供
+#    · 用途：验证代码能编译（每次改 Dart 代码后的自动检查）
+#    · 拿到开发者证书后，把下面改成 signed 构建即可直传 TestFlight
+#
+#  ⚠️ 未签名的 IPA **不作为 Release 资产发布** —— 它装不到设备上，
+#     放出去只会让用户困惑。iOS 用户走 TestFlight，
+#     见 docs/TestFlight发布教程.md
+#
+#  手动触发：Actions → Build iOS (unsigned IPA) → Run workflow
+# =============================================================================
+
+name: Build iOS (unsigned IPA)
+
+on:
+  # 推到主分支就自动构建
+  push:
+    branches: [main, master]
+  # 允许在网页上手动点按钮触发
+  workflow_dispatch:
+    inputs:
+      flutter_version:
+        description: 'Flutter 版本（留空用 stable）'
+        required: false
+        default: ''
+
+jobs:
+  build-ios:
+    # macOS runner 是编 iOS 的**唯一**选择，不能用 ubuntu/windows
+    runs-on: macos-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------- Flutter
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ github.event.inputs.flutter_version }}
+          # 缓存 Flutter SDK 与 pub 包，第二次构建能快 2-3 分钟
+          cache: true
+
+      - name: 查看 Flutter 环境
+        run: flutter doctor -v
+
+      # ---------------------------------------------------------------- 依赖
+      - name: 拉取依赖
+        run: flutter pub get
+
+      # CocoaPods 用来管理 iOS 原生依赖（插件）。
+      # macOS runner 通常预装了，但版本可能旧，显式更新一次更稳。
+      - name: 准备 CocoaPods
+        run: |
+          sudo gem install cocoapods --no-document || true
+          pod --version
+
+      # ---------------------------------------------------------------- 静态检查
+      # 先跑 analyze：编译要几分钟，语法错误在这里就能拦住，省时间
+      - name: 静态分析
+        run: flutter analyze
+
+      # ---------------------------------------------------------------- 构建
+      # ⚠️ --no-codesign 是关键：我们没有证书，去掉它构建会失败在签名那一步。
+      #    加上它则只做编译和打包，产出未签名的 IPA。
+      - name: 构建未签名 IPA
+        run: flutter build ipa --release --no-codesign
+
+      # ---------------------------------------------------------------- 产物整理
+      # ⚠️ 关键：`--no-codesign` 时 Flutter **不会**生成 IPA。
+      #    它的输出是一行 `Codesigning disabled with --no-codesign, skipping IPA.`，
+      #    build/ios/ipa/ 目录根本不存在（第一版工作流就是卡在这里：
+      #    归档成功了 184.7MB 的 Runner.xcarchive，却因为找不到 .ipa 而报错退出）。
+      #
+      #    所以要自己从 .xcarchive 里打包出未签名 IPA —— 未签名 IPA 的本质
+      #    就是一个 zip：Payload/Runner.app。
+      - name: 整理产物
+        run: |
+          echo "=== build/ios/archive 内容 ==="
+          ls -la build/ios/archive/ || true
+          echo "=== build/ios/ipa 内容 ==="
+          ls -la build/ios/ipa/ 2>/dev/null || echo "(不存在，--no-codesign 下正常)"
+
+          mkdir -p out
+
+          # 优先用 Flutter 真的产出了 IPA 的情况（将来改成签名构建时走这条）
+          if ls build/ios/ipa/*.ipa >/dev/null 2>&1; then
+            cp build/ios/ipa/*.ipa "out/fxlovewall-ios-unsigned.ipa"
+            echo "已复制 Flutter 生成的 IPA"
+          else
+            # 否则从 xcarchive 自己打包
+            APP="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+            if [ ! -d "$APP" ]; then
+              echo "::error::既没有 IPA，也找不到 $APP"
+              ls -la build/ios/archive/Runner.xcarchive/Products/ 2>/dev/null || true
+              exit 1
+            fi
+            echo "从 xcarchive 打包未签名 IPA ..."
+            rm -rf /tmp/ipastage && mkdir -p /tmp/ipastage/Payload
+            cp -R "$APP" /tmp/ipastage/Payload/
+            # 去掉签名残留，保证是干净的未签名包
+            rm -rf /tmp/ipastage/Payload/Runner.app/_CodeSignature
+            (cd /tmp/ipastage && zip -qry "$GITHUB_WORKSPACE/out/fxlovewall-ios-unsigned.ipa" Payload)
+            echo "已从 xcarchive 打包 IPA"
+          fi
+
+          # 顺便把 .app 也带上：有些人更喜欢直接用 .app 做签名
+          if [ -d build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app ]; then
+            cp -R build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app out/ || true
+          fi
+
+          echo "=== out 内容 ==="
+          ls -la out/
+          echo "=== IPA 大小 ==="
+          du -h out/*.ipa || true
+
+      # ---------------------------------------------------------------- 上传
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: fxlovewall-ios-ipa
+          path: out/
+          # 保留 30 天，过期自动清理
+          retention-days: 30
+          if-no-files-found: error
+
+      # 构建失败时把日志里的关键信息挑出来，方便定位
+      - name: 失败时输出诊断
+        if: failure()
+        run: |
+          echo "=== Flutter 版本 ==="
+          flutter --version || true
+          echo "=== Podfile 是否存在 ==="
+          ls -la ios/Podfile || echo "没有 Podfile（首次构建会自动生成）"
+          echo "=== iOS 目录结构 ==="
+          find ios -maxdepth 2 -type d || true

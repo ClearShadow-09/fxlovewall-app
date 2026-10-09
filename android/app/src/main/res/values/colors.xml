@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自适应图标背景层：取自图标原图的灰底，与旧 Kotlin 版一致 -->
+    <color name="ic_launcher_background">#FFABABAD</color>
+</resources>
