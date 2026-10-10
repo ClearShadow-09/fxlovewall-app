@@ -46,7 +46,7 @@
 | **Android** | `fxlovewall-1.2.5-arm.apk` | 推荐。只含 ARM，体积小（约 19 MB） |
 | **Android** | `fxlovewall-1.2.5-universal.apk` | 含 x86_64，模拟器或特殊设备用（约 26 MB） |
 | **Windows** | `fxlovewall-1.2.5-windows.zip` | 解压后双击 `fxwall.exe` |
-| **iOS** | TestFlight | 见下方说明，链接准备中 |
+| **iOS** | ipa | 见下方说明，可自己折腾 |
 
 ### 各平台安装说明
 
@@ -78,14 +78,9 @@
 <details>
 <summary><b>iOS</b></summary>
 
-iOS 端通过 **TestFlight** 分发（苹果的官方测试渠道）。
+iOS 端目前只提供ipa文件，有MAC的可以自己网上搜索教程，之后有较小概率提供Testflight链接。
 
-> 📱 **正在准备中** —— 链接发布后会更新在这里。
->
-> 到时候点链接 → 装 TestFlight App → 安装即可。
->
-> ⏰ **注意**：TestFlight 的安装有效期是 **90 天**，到期后需要重新安装新版本。
-> 我会在到期前更新构建，你只要再点一次链接就行。
+> 📱 可以在**action**里自己下载ipa文件
 
 </details>
 
