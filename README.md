@@ -69,7 +69,7 @@
 **系统要求**：
 - Windows 10 及以上（64 位）
 - 需要 **WebView2 运行时**（Windows 11 已预装；Win10 若缺失可从
-  [微软官网](https://developer.microsoft.com/microsoft-edge/webview2/) 免费安装）
+  [微软官网](https://developer.microsoft.com/microsoft-edge/webview2/)）
 
 > 桌面端不支持应用内自动更新 —— 程序无法替换正在运行的自身。
 > 检测到新版本时会打开下载页，手动下载覆盖即可。
@@ -78,7 +78,7 @@
 <details>
 <summary><b>iOS</b></summary>
 
-iOS 端目前只提供ipa文件，有MAC的可以自己网上搜索教程，之后有较小概率提供Testflight链接。
+iOS 端目前只提供ipa文件（之后会放在release里，但这个版本没有经过任何测试，且不再维护，可提供issue，但无人理会），之后有毫无概率提供Testflight链接。
 
 > 📱 可以在**action**里自己下载ipa文件
 
