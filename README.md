@@ -41,12 +41,16 @@
 
 前往 **[Releases](https://github.com/ClearShadow-09/fxlovewall-app/releases/latest)** 页面下载。
 
+备用链接1：**[Gitee Releases](https://gitee.com/ClearShadow-09/fxlovewall-app/releases/tag/v1.2.5-release)**。
+
+备用链接2：**[蓝奏云](https://clearshadow.lanzout.com/b00q1siqzg)，密码fdfx。**
+
 | 平台 | 文件 | 说明 |
 |---|---|---|
 | **Android** | `fxlovewall-1.2.5-arm.apk` | 推荐。只含 ARM，体积小（约 19 MB） |
 | **Android** | `fxlovewall-1.2.5-universal.apk` | 含 x86_64，模拟器或特殊设备用（约 26 MB） |
 | **Windows** | `fxlovewall-1.2.5-windows.zip` | 解压后双击 `fxwall.exe` |
-| **iOS** | ipa | 见下方说明，可自己折腾 |
+| **iOS** | 'fxlovewall-ios-unsigned.ipa' | 见下方说明，可自己折腾 |
 
 ### 各平台安装说明
 
